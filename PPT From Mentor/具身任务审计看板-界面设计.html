@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>具身任务审计看板 · 界面设计（教学模拟版）</title>
+<style>
+:root{
+  --bg:#0E1420; --panel:#171F2E; --panel-2:#121927; --line:#26324A;
+  --text:#DCE4F2; --muted:#8494B0; --faint:#5A6A85;
+  --stem:#E8A33D;   /* 脑干 */
+  --mid:#3FC1C9;    /* 小脑 */
+  --brain:#9B7BF5;  /* 大脑 */
+  --ok:#4CC38A; --fail:#E5484D; --warn:#F0B429;
+  --mono:ui-monospace,'JetBrains Mono','Cascadia Mono','Courier New',monospace;
+  --sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh}
+/* ---------- 顶栏 ---------- */
+header{display:flex;align-items:center;gap:16px;padding:10px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#131B2A,#0E1420)}
+header h1{font-size:17px;font-weight:600;letter-spacing:1px}
+header h1 small{color:var(--muted);font-weight:400;margin-left:8px;font-size:12px}
+.simband{font-family:var(--mono);font-size:11px;color:#0E1420;background:var(--warn);border-radius:3px;padding:2px 8px;letter-spacing:1px}
+.hb{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+.dot.bad{background:var(--fail);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+#clock{font-family:var(--mono);color:var(--faint);font-size:12px;margin-left:auto}
+button{font-family:var(--sans);cursor:pointer;border:1px solid var(--line);background:#1C2638;color:var(--text);border-radius:6px;padding:7px 14px;font-size:13px;transition:background .15s,border-color .15s}
+button:hover{background:#243049;border-color:#37507B}
+button:focus-visible{outline:2px solid var(--mid);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+#estop{background:#3A1418;border:2px solid var(--fail);color:#FF9DA1;font-weight:700;letter-spacing:2px;padding:7px 20px}
+#estop.armed{background:var(--fail);color:#fff}
+/* ---------- 布局 ---------- */
+.wrap{display:grid;grid-template-columns:320px 1fr 340px;grid-template-rows:auto 250px;gap:12px;padding:12px 18px;height:calc(100vh - 57px)}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;position:relative}
+.panel h2{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.panel h2 .tag{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:0;color:var(--faint)}
+.spine{display:inline-block;width:4px;height:12px;border-radius:2px}
+.spine.brain{background:var(--brain)}.spine.mid{background:var(--mid)}.spine.stem{background:var(--stem)}.spine.safe{background:var(--fail)}
+/* ---------- 断流冻结（签名交互）---------- */
+.panel.offline{filter:grayscale(.95) brightness(.6)}
+.panel.offline::after{content:'OFFLINE · 数据流中断 · 画面已冻结';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:15px;letter-spacing:3px;color:#FFB4B4;background:rgba(14,20,32,.55);border:2px dashed var(--fail);border-radius:10px;transform:rotate(-4deg);pointer-events:none}
+/* ---------- 指令入口 ---------- */
+#instr{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:9px 10px;font-size:13px;font-family:var(--sans)}
+#instr:focus{outline:2px solid var(--brain);outline-offset:1px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chips button{font-size:11px;padding:4px 8px;color:var(--muted);border-radius:12px}
+.actions{display:flex;gap:8px;margin-top:10px}
+.actions .run{background:#173328;border-color:#2E6B4F;color:#9FE8C4;font-weight:600;flex:1}
+/* ---------- 计划/守门 ---------- */
+pre.plan{font-family:var(--mono);font-size:11px;line-height:1.55;color:#B9C6DE;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:10px;white-space:pre-wrap;max-height:190px;overflow-y:auto}
+pre.plan .cur{background:#2A2350;color:#D9CCFF;border-radius:3px}
+.gate{list-style:none;font-family:var(--mono);font-size:11px;margin-top:8px}
+.gate li{display:flex;justify-content:space-between;padding:3px 2px;color:var(--muted);border-bottom:1px dashed #1E2A40}
+.gate li b{font-weight:400}
+.gate .pass{color:var(--ok)}.gate .block{color:var(--fail)}
+/* ---------- 健康度 ---------- */
+.health{display:grid;grid-template-columns:1fr;gap:8px}
+.hcard{background:var(--panel-2);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:6px;padding:8px 10px}
+.hcard.brain{border-left-color:var(--brain)}.hcard.mid{border-left-color:var(--mid)}.hcard.stem{border-left-color:var(--stem)}
+.hcard .name{font-size:12px;font-weight:600}
+.hcard .metrics{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6}
+.hcard .metrics em{font-style:normal;color:var(--text)}
+/* ---------- 地图 ---------- */
+#mapPanel{flex:1;display:flex;flex-direction:column;min-height:0}
+#map{flex:1;width:100%;background:#0A101B;border-radius:6px;border:1px solid var(--line)}
+.maplegend{display:flex;gap:14px;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:6px;flex-wrap:wrap}
+/* ---------- 相机/感知 ---------- */
+#cam{width:100%;aspect-ratio:4/3;background:#0A101B;border-radius:6px;border:1px solid var(--line)}
+.vlmbox{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;color:#B9C6DE;white-space:pre-wrap;min-height:72px;margin-top:8px}
+.ground{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.ground th{font-size:10px;color:var(--faint);letter-spacing:1px;text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}
+.ground td{padding:4px 6px;border-bottom:1px dashed #1E2A40;font-family:var(--mono);font-size:11px}
+.ground .ok{color:var(--ok)}.ground .bad{color:var(--fail)}
+/* ---------- 证据链时间线（签名元素）---------- */
+#timelinePanel{grid-column:1/4;display:flex;flex-direction:column;min-height:0}
+#tl{flex:1;overflow-y:auto;display:flex;flex-direction:column-reverse;gap:0;padding-right:6px}
+.ev{display:grid;grid-template-columns:86px 70px 1fr auto;gap:10px;align-items:baseline;padding:5px 8px;border-left:4px solid var(--line);margin:2px 0;background:var(--panel-2);border-radius:0 6px 6px 0}
+.ev.brain{border-left-color:var(--brain)}.ev.mid{border-left-color:var(--mid)}.ev.stem{border-left-color:var(--stem)}.ev.safe{border-left-color:var(--fail)}.ev.audit{border-left-color:var(--warn)}
+.ev .t{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.ev .layer{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--muted)}
+.ev .msg{font-size:12px}
+.ev .msg code{font-family:var(--mono);font-size:11px;color:#9FB6DC}
+.ev .st{font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:8px}
+.st.ok{background:#12291F;color:var(--ok)}.st.fail{background:#331418;color:var(--fail)}.st.warn{background:#332A10;color:var(--warn)}.st.info{background:#152238;color:var(--muted)}
+.ev .snap{font-family:var(--mono);font-size:10px;color:var(--mid);text-decoration:underline dotted;cursor:help}
+footer{padding:8px 18px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;gap:18px;flex-wrap:wrap}
+footer b{color:var(--warn);font-weight:400}
+@media (max-width:1100px){.wrap{grid-template-columns:1fr;grid-template-rows:none;height:auto}#timelinePanel{grid-column:1}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>具身任务审计看板<small>指令 → 计划 → 守门 → 执行 → 证据</small></h1>
+  <span class="simband">教学模拟模式</span>
+  <span class="hb"><span class="dot" id="hbDot"></span><span id="hbText">rosbridge 心跳 · 模拟</span></span>
+  <span id="clock">--:--:--</span>
+  <button id="estop">急停 E-STOP</button>
+</header>
+
+<div class="wrap">
+  <!-- 左列：指令 / 大脑 / 健康 -->
+  <div class="col">
+    <div class="panel" id="instrPanel">
+      <h2><span class="spine brain"></span>指令入口<span class="tag">/mission/instruction</span></h2>
+      <input id="instr" type="text" placeholder="输入自然语言任务指令…" value="巡查A区，发现杯子则靠近到0.5米内拍照存证，然后返回起点">
+      <div class="chips">
+        <button data-demo="normal">▸ 巡查A区找杯子（标准演示）</button>
+        <button data-demo="halluc">▸ 幻觉注入演示</button>
+      </div>
+      <div class="actions">
+        <button class="run" id="runBtn">运行任务</button>
+        <button id="micBtn" title="浏览器语音输入（zh-CN）">🎤 语音</button>
+        <button id="dropBtn" title="模拟位姿/地图话题断流，验证前端冻结行为">📡 模拟断流</button>
+      </div>
+    </div>
+
+    <div class="panel" id="planPanel">
+      <h2><span class="spine brain"></span>大脑 · 任务计划<span class="tag">LLM plan · temperature=0</span></h2>
+      <pre class="plan" id="planBox">— 等待指令 —</pre>
+      <ul class="gate" id="gateList">
+        <li><b>技能白名单</b><span>待检</span></li>
+        <li><b>参数类型与范围</b><span>待检</span></li>
+        <li><b>目标点在围栏内</b><span>待检</span></li>
+        <li><b>地标存在性</b><span>待检</span></li>
+        <li><b>步数 ≤ 12</b><span>待检</span></li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2><span class="spine stem"></span>三层健康度</h2>
+      <div class="health">
+        <div class="hcard brain"><div class="name">大脑 · 云端 LLM/VLM</div><div class="metrics" id="hBrain">API <em>就绪</em> · 上次延迟 <em>—</em> · 守门拦截率 <em>100%</em></div></div>
+        <div class="hcard mid"><div class="name">小脑 · 树莓派 ROS 2</div><div class="metrics" id="hMid">TF <em>完整</em> · AMCL协方差 <em>0.021</em> · 检测 <em>2.0 Hz</em></div></div>
+        <div class="hcard stem"><div class="name">脑干 · ESP32-S3</div><div class="metrics" id="hStem">/odom <em>49.8 Hz</em> · 时延 <em>8 ms</em> · 看门狗 <em>armed</em></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中列：地图 -->
+  <div class="col">
+    <div class="panel" id="mapPanel">
+      <h2><span class="spine mid"></span>场地地图与定位<span class="tag">/map · /amcl_pose · 心跳2s冻结</span></h2>
+      <canvas id="map" width="820" height="620"></canvas>
+      <div class="maplegend">
+        <span>▲ 机器人（航向）</span><span style="color:#E5484D">▨ 虚拟围栏</span>
+        <span style="color:#3FC1C9">◎ 语义地标（rotate_scan后落表）</span><span>⌂ 起点框</span><span>A/B/C 功能区</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右列：相机 / 感知 / 接地 -->
+  <div class="col">
+    <div class="panel" id="camPanel">
+      <h2><span class="spine mid"></span>机载相机<span class="tag">web_video_server · 模拟画面</span></h2>
+      <canvas id="cam" width="320" height="240"></canvas>
+      <div class="vlmbox" id="vlmBox">VLM 结构化描述将显示在此。</div>
+    </div>
+    <div class="panel">
+      <h2><span class="spine audit" style="background:var(--warn)"></span>接地核对<span class="tag">系统汇报 vs 场地真值</span></h2>
+      <table class="ground" id="groundTbl">
+        <thead><tr><th>汇报条目</th><th>真值</th><th>判定</th></tr></thead>
+        <tbody><tr><td colspan="3" style="color:var(--faint)">任务结束后由裁判核对</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 底部：证据链 -->
+  <div class="panel" id="timelinePanel">
+    <h2><span class="spine safe"></span>任务证据链<span class="tag" id="chainMeta">chain.jsonl · 0 条 · 时间戳单调 ✓</span></h2>
+    <div id="tl"></div>
+  </div>
+</div>
+
+<footer>
+  <span><b>第10次课改造任务：</b>本页当前为纯前端模拟数据。将 SIM_MODE 置 false，按源码注释接入 roslib（ws://树莓派IP:9090）与 web_video_server，即为真实审计看板。</span>
+  <span>断流冻结（C3）·守门留痕·证据链时间戳单调（C2）为验收必查项</span>
+</footer>
+
+<script>
+/* =====================================================================
+   具身任务审计看板 · 教学模拟版
+   第10次课改造指引：
+   1) 将 SIM_MODE 置为 false；
+   2) 引入 <script src="roslib.min.js"> 并按下方 ROSLIB 接入注释替换数据源；
+   3) 相机面板改为 <img src="http://PI_IP:8080/stream?topic=/image_raw">；
+   4) 断流冻结逻辑（watchFreeze）与证据链渲染无需改动——真实话题同样适用。
+   --------------------------------------------------------------------
+   ROSLIB 接入示例（真实模式）：
+     const ros = new ROSLIB.Ros({url:'ws://PI_IP:9090'});
+     sub('/amcl_pose','geometry_msgs/PoseWithCovarianceStamped',
+         m => { pose.x=m.pose.pose.position.x; ... ; beat('map'); });
+     sub('/mission/log','std_msgs/String',
+         m => renderChainEvent(JSON.parse(m.data)));
+     指令发布: new ROSLIB.Topic({ros,name:'/mission/instruction',
+         messageType:'std_msgs/String'}).publish({data:text});
+   ===================================================================== */
+const SIM_MODE = true;
+
+/* ---------- 场地模型（与课程场地一致：4m×4m，A/B/C三区） ---------- */
+const ARENA = 4.0, FENCE = [[-0.1,-0.1],[4.1,-0.1],[4.1,4.1],[-0.1,4.1]];
+const ZONES = [
+  {name:'A', x:0.2, y:2.2, w:1.8, h:1.6, c:'rgba(63,193,201,.07)'},
+  {name:'B', x:2.2, y:2.2, w:1.6, h:1.6, c:'rgba(155,123,245,.07)'},
+  {name:'C', x:2.2, y:0.2, w:1.6, h:1.6, c:'rgba(232,163,61,.07)'},
+];
+const OBST = [{x:1.9,y:1.7,w:0.35,h:0.6},{x:0.9,y:1.1,w:0.5,h:0.3}];
+const TRUTH = [   // 场地真值表（裁判持有；模拟中用于接地核对）
+  {id:'cup_1',    label:'杯子',   icon:'☕', x:1.30, y:3.25, zone:'A'},
+  {id:'bottle_1', label:'瓶子',   icon:'🍾', x:3.10, y:3.30, zone:'B'},
+  {id:'box_1',    label:'纸箱',   icon:'📦', x:3.05, y:0.75, zone:'C'},
+];
+const START = {x:0.45, y:0.45};
+
+/* ---------- 运行状态 ---------- */
+const pose = {x:START.x, y:START.y, th:0.7};
+const trail = [];
+let landmarks = [];            // 语义地标表（rotate_scan 后落表）
+let target = null, estop = false, feeding = true, busy = false;
+let chainCount = 0, lastChainT = 0;
+let camScene = {mode:'idle'};  // idle | object | empty
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const now = () => new Date().toTimeString().slice(0,8);
+
+/* ---------- 证据链时间线 ---------- */
+function addEvent(layer, layerLabel, msg, status, snap){
+  const t = Date.now()/1000;
+  if (t < lastChainT) console.error('时间戳回退！');   // C2 单调自洽
+  lastChainT = t; chainCount++;
+  $('chainMeta').textContent = `chain.jsonl · ${chainCount} 条 · 时间戳单调 ✓`;
+  const div = document.createElement('div');
+  div.className = 'ev ' + layer;
+  div.innerHTML = `<span class="t">${now()}</span>`
+    + `<span class="layer">${layerLabel}</span>`
+    + `<span class="msg">${msg}</span>`
+    + `<span>${snap ? `<span class="snap" title="模拟快照文件">📷 ${snap}</span> ` : ''}`
+    + `<span class="st ${status||'info'}">${{ok:'通过',fail:'失败',warn:'警示',info:'记录'}[status||'info']}</span></span>`;
+  $('tl').appendChild(div);
+}
+
+/* ---------- 地图渲染 ---------- */
+const map = $('map'), mctx = map.getContext('2d');
+const PAD = 34, S = (map.width - PAD*2) / (ARENA + 0.4);
+const W2X = x => PAD + (x + 0.2) * S;
+const W2Y = y => map.height - PAD - (y + 0.2) * S;
+let lastMapBeat = Date.now();
+
+function drawMap(){
+  if (!feeding) return;                    // 断流：不再刷新 → 画面冻结
+  lastMapBeat = Date.now();
+  mctx.clearRect(0,0,map.width,map.height);
+  mctx.strokeStyle = '#16233A'; mctx.lineWidth = 1;
+  for(let g=0; g<=ARENA+0.01; g+=0.5){     // 0.5m 网格
+    mctx.beginPath(); mctx.moveTo(W2X(g),W2Y(0)); mctx.lineTo(W2X(g),W2Y(ARENA)); mctx.stroke();
+    mctx.beginPath(); mctx.moveTo(W2X(0),W2Y(g)); mctx.lineTo(W2X(ARENA),W2Y(g)); mctx.stroke();
+  }
+  ZONES.forEach(z=>{ mctx.fillStyle=z.c;
+    mctx.fillRect(W2X(z.x),W2Y(z.y+z.h),z.w*S,z.h*S);
+    mctx.fillStyle='#3A4A68'; mctx.font='700 22px monospace';
+    mctx.fillText(z.name, W2X(z.x)+8, W2Y(z.y+z.h)+26); });
+  mctx.strokeStyle='#E5484D'; mctx.setLineDash([8,6]); mctx.lineWidth=2;   // 虚拟围栏
+  mctx.strokeRect(W2X(FENCE[0][0]),W2Y(FENCE[2][1]),(FENCE[1][0]-FENCE[0][0])*S,(FENCE[2][1]-FENCE[1][1])*S);
+  mctx.setLineDash([]);
+  mctx.fillStyle='#2E3D5C'; OBST.forEach(o=>mctx.fillRect(W2X(o.x),W2Y(o.y+o.h),o.w*S,o.h*S));
+  mctx.strokeStyle='#8494B0'; mctx.strokeRect(W2X(START.x-0.15),W2Y(START.y+0.15),0.3*S,0.3*S);
+  mctx.fillStyle='#8494B0'; mctx.font='11px monospace'; mctx.fillText('起点', W2X(START.x-0.14), W2Y(START.y-0.2));
+  landmarks.forEach(l=>{                    // 已发现地标
+    mctx.font='16px serif'; mctx.fillText(l.icon, W2X(l.x)-8, W2Y(l.y)+6);
+    mctx.strokeStyle='#3FC1C9'; mctx.beginPath(); mctx.arc(W2X(l.x),W2Y(l.y),12,0,6.283); mctx.stroke();
+    mctx.fillStyle='#3FC1C9'; mctx.font='10px monospace'; mctx.fillText(l.id, W2X(l.x)-14, W2Y(l.y)-14); });
+  if (target){ mctx.strokeStyle='#4CC38A'; mctx.beginPath();
+    mctx.moveTo(W2X(target.x)-7,W2Y(target.y)); mctx.lineTo(W2X(target.x)+7,W2Y(target.y));
+    mctx.moveTo(W2X(target.x),W2Y(target.y)-7); mctx.lineTo(W2X(target.x),W2Y(target.y)+7); mctx.stroke(); }
+  mctx.strokeStyle='rgba(63,193,201,.5)'; mctx.beginPath();               // 轨迹
+  trail.forEach((p,i)=> i? mctx.lineTo(W2X(p.x),W2Y(p.y)) : mctx.moveTo(W2X(p.x),W2Y(p.y)));
+  mctx.stroke();
+  mctx.save(); mctx.translate(W2X(pose.x),W2Y(pose.y)); mctx.rotate(-pose.th);  // 机器人
+  mctx.fillStyle = estop ? '#E5484D' : '#DCE4F2';
+  mctx.beginPath(); mctx.moveTo(12,0); mctx.lineTo(-8,7); mctx.lineTo(-8,-7); mctx.closePath(); mctx.fill();
+  mctx.restore();
+}
+setInterval(drawMap, 100);
+
+/* 断流冻结监视：任何面板心跳超时2s即置灰盖章（C3） */
+setInterval(()=>{
+  $('mapPanel').classList.toggle('offline', Date.now()-lastMapBeat > 2000);
+  $('hbDot').classList.toggle('bad', !feeding);
+  $('hbText').textContent = feeding ? 'rosbridge 心跳 · 模拟' : '心跳丢失 · 前端禁止外推';
+}, 400);
+
+/* ---------- 相机渲染 ---------- */
+const cam = $('cam'), cctx = cam.getContext('2d');
+function drawCam(){
+  const g = cctx.createLinearGradient(0,0,0,240);
+  g.addColorStop(0,'#1B2434'); g.addColorStop(.55,'#141C2B'); g.addColorStop(1,'#0F1522');
+  cctx.fillStyle=g; cctx.fillRect(0,0,320,240);
+  cctx.strokeStyle='#233150'; cctx.beginPath(); cctx.moveTo(0,150); cctx.lineTo(320,150); cctx.stroke();
+  if (camScene.mode==='object'){
+    cctx.font='64px serif'; cctx.fillText(camScene.icon,128,170);
+    cctx.strokeStyle='#4CC38A'; cctx.lineWidth=2; cctx.strokeRect(112,104,88,80);
+    cctx.fillStyle='#4CC38A'; cctx.font='11px monospace';
+    cctx.fillText(`${camScene.cls} ${camScene.conf}`,112,98);
+  } else if (camScene.mode==='empty'){
+    cctx.fillStyle='#5A6A85'; cctx.font='12px monospace'; cctx.fillText('（空景 · 无检测框）',96,120);
+  } else {
+    cctx.fillStyle='#5A6A85'; cctx.font='12px monospace'; cctx.fillText('相机就绪 · 2Hz 抽帧',96,120);
+  }
+  cctx.fillStyle='#3A4A68'; cctx.font='9px monospace'; cctx.fillText(now(),248,232);
+}
+setInterval(drawCam, 500);
+
+/* ---------- 运动模拟（含急停与围栏截停） ---------- */
+async function goTo(x,y){
+  target = {x,y};
+  while(!estop){
+    const dx=x-pose.x, dy=y-pose.y, d=Math.hypot(dx,dy);
+    if (d < 0.03) break;
+    pose.th = Math.atan2(dy,dx);
+    const step = Math.min(0.05, d);        // ≈0.5m/s
+    pose.x += step*Math.cos(pose.th); pose.y += step*Math.sin(pose.th);
+    trail.push({x:pose.x,y:pose.y}); if (trail.length>400) trail.shift();
+    await sleep(100);
+  }
+  target = null;
+  return !estop;
+}
+
+/* ---------- 演示任务脚本 ---------- */
+const PLAN_NORMAL = [
+  {skill:'go_to',          params:{x:1.1, y:2.9}},
+  {skill:'rotate_scan',    params:{}},
+  {skill:'approach',       params:{object:'cup_1', dist:0.5}},
+  {skill:'capture_report', params:{question:'列出你看到的物体'}},
+  {skill:'go_home',        params:{}},
+];
+function renderPlan(plan, cur){
+  $('planBox').innerHTML = plan.map((s,i)=>{
+    const line = JSON.stringify(s);
+    return i===cur ? `<span class="cur">▶ ${line}</span>` : `  ${line}`;
+  }).join('\n');
+}
+async function runGate(){
+  const items = $('gateList').children;
+  for (const li of items){
+    await sleep(260);
+    li.lastElementChild.textContent='✓ 通过'; li.lastElementChild.className='pass';
+  }
+  addEvent('brain','守门层','计划通过全部确定性校验（白名单/范围/围栏/地标/步数）','ok');
+}
+async function mission(halluc){
+  if (busy) return; busy = true; estop = false; $('estop').classList.remove('armed');
+  landmarks = []; trail.length = 0; camScene = {mode:'idle'};
+  $('groundTbl').tBodies[0].innerHTML = '<tr><td colspan="3" style="color:var(--faint)">任务进行中…</td></tr>';
+  const instr = $('instr').value;
+  addEvent('brain','指令', `“${instr}”`, 'info');
+  $('hBrain').innerHTML = 'API <em>思考中…</em> · 守门拦截率 <em>100%</em>';
+  renderPlan([],-1); $('planBox').textContent='LLM 规划中…';
+  await sleep(1600);
+  $('hBrain').innerHTML = 'API <em>就绪</em> · 上次延迟 <em>1.62 s</em> · 守门拦截率 <em>100%</em>';
+  addEvent('brain','大脑', '生成计划：5 步（reason: 先到A区扫描建立地标，再靠近目标存证）', 'info');
+  renderPlan(PLAN_NORMAL,-1);
+  await runGate();
+
+  // 步1 go_to A区
+  renderPlan(PLAN_NORMAL,0);
+  addEvent('mid','小脑', '执行 <code>go_to(1.1, 2.9)</code> → Nav2', 'info');
+  if (!await goTo(1.1,2.9)){ abort(); return; }
+  addEvent('mid','小脑', '<code>go_to</code> 后置条件：到点误差 0.11 m ＜ 0.15 m', 'ok');
+
+  // 步2 rotate_scan
+  renderPlan(PLAN_NORMAL,1);
+  addEvent('mid','小脑', '执行 <code>rotate_scan</code>：8×45° 分步扫描', 'info');
+  for (let k=0;k<8;k++){ if(estop){abort();return;} pose.th += Math.PI/4; await sleep(320);
+    TRUTH.forEach(o=>{ if (!landmarks.find(l=>l.id===o.id) && Math.hypot(o.x-pose.x,o.y-pose.y)<1.6){
+      landmarks.push(o);
+      addEvent('mid','投影', `发现 <code>${o.id}</code> → 方位角+雷达测距 → map(${o.x.toFixed(2)}, ${o.y.toFixed(2)})`, 'ok', `${o.id}.jpg`);
+    }});}
+  // 步3 approach
+  renderPlan(PLAN_NORMAL,2);
+  addEvent('mid','小脑', '执行 <code>approach(cup_1, 0.5)</code>', 'info');
+  const cup = TRUTH[0], ang = Math.atan2(cup.y-pose.y, cup.x-pose.x);
+  if (!await goTo(cup.x-0.5*Math.cos(ang), cup.y-0.5*Math.sin(ang))){ abort(); return; }
+  camScene = {mode:'object', icon:'☕', cls:'cup', conf:'0.87'};
+  addEvent('mid','小脑', '<code>approach</code> 后置条件：目标居中，测距 0.52 m', 'ok');
+
+  // 步4 capture_report（VLM）
+  renderPlan(PLAN_NORMAL,3);
+  addEvent('brain','大脑', '执行 <code>capture_report</code>：拍照上云 → VLM 结构化描述', 'info');
+  await sleep(1400);
+  const objs = [{name:'cup', color:'white', position:'center', confidence:'high'}];
+  if (halluc) objs.push({name:'fire_extinguisher', color:'red', position:'left', confidence:'medium'});
+  $('vlmBox').textContent = JSON.stringify({objects:objs, uncertain:[]}, null, 1);
+  addEvent('brain','VLM', `返回 ${objs.length} 个物体（延迟 1.4 s · 温度 0）`, 'info', 'step4_scene.jpg');
+  // 感知复核：独立通道（检测器）交叉验证
+  if (halluc){
+    addEvent('audit','复核', 'VLM 声称 <code>fire_extinguisher</code>，独立检测器未确认且雷达该方位无实体回波 → <b>判定幻觉，条目不写入汇报</b>', 'warn');
+  }
+  addEvent('audit','复核', '<code>cup</code> 经检测器交叉确认（conf 0.87），写入汇报', 'ok');
+
+  // 步5 go_home
+  renderPlan(PLAN_NORMAL,4);
+  addEvent('mid','小脑', '执行 <code>go_home</code>', 'info');
+  if (!await goTo(START.x,START.y)){ abort(); return; }
+  addEvent('mid','小脑', '<code>go_home</code> 后置条件：回到起点框内', 'ok');
+  camScene = {mode:'idle'};
+
+  // 汇报与接地核对
+  const tb = $('groundTbl').tBodies[0]; tb.innerHTML='';
+  const row = (a,b,c,cls)=>{ const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${a}</td><td>${b}</td><td class="${cls}">${c}</td>`; tb.appendChild(tr); };
+  row('A区 · cup ×1','A区确有杯子','✓ 一致','ok');
+  if (halluc) row('（幻觉：fire_extinguisher）','场地不存在','⛔ 虚报 · 已被复核拦截','bad');
+  addEvent('brain','汇报', `任务完成：A区发现杯子并已存证${halluc?'；1 条幻觉被复核通道拦截，未计入汇报':''}`, 'ok', 'mission_report.json');
+  renderPlan(PLAN_NORMAL,-1);
+  busy = false;
+}
+function abort(){
+  addEvent('safe','安全门', '任务中止：/cmd_vel 已归零（急停或越界）', 'fail');
+  renderPlan(PLAN_NORMAL,-1); camScene={mode:'idle'}; busy=false;
+}
+
+/* ---------- 交互绑定 ---------- */
+$('runBtn').onclick = ()=> mission(false);
+document.querySelectorAll('.chips button').forEach(b=> b.onclick = ()=>{
+  if (b.dataset.demo==='halluc'){
+    $('instr').value='巡查A区，报告所有物体（含红色灭火器），发现杯子则靠近拍照存证后返回';
+    mission(true);
+  } else { $('instr').value='巡查A区，发现杯子则靠近到0.5米内拍照存证，然后返回起点'; mission(false); }
+});
+$('estop').onclick = ()=>{
+  estop = !estop; $('estop').classList.toggle('armed', estop);
+  if (estop) addEvent('safe','安全门', '急停触发：安全门输出 <code>Twist(0,0)</code>，脑干看门狗待命', 'fail');
+  else addEvent('safe','安全门', '急停解除', 'info');
+};
+$('dropBtn').onclick = ()=>{
+  feeding = !feeding;
+  $('dropBtn').textContent = feeding ? '📡 模拟断流' : '📡 恢复数据流';
+  addEvent(feeding?'mid':'safe','看板', feeding ? '数据流恢复，面板解除冻结'
+    : '注入断流：位姿/地图话题停更 → 2秒后面板必须置灰冻结（严禁本地外推）', feeding?'ok':'warn');
+};
+$('micBtn').onclick = ()=>{
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR){ $('instr').value='（当前浏览器不支持 Web Speech API，请直接输入文字）'; return; }
+  const rec = new SR(); rec.lang='zh-CN';
+  rec.onresult = e => { $('instr').value = e.results[0][0].transcript; };
+  rec.start(); addEvent('brain','指令', '语音输入监听中（zh-CN）…', 'info');
+};
+
+/* ---------- 环境模拟：时钟与健康度抖动 ---------- */
+setInterval(()=>{ $('clock').textContent = now(); }, 1000);
+setInterval(()=>{
+  const hz=(49.3+Math.random()*1.2).toFixed(1), dl=(6+Math.random()*5).toFixed(0);
+  $('hStem').innerHTML = `/odom <em>${hz} Hz</em> · 时延 <em>${dl} ms</em> · 看门狗 <em>armed</em>`;
+}, 1200);
+addEvent('stem','脑干','micro-ROS 接口就绪：/cmd_vel /odom /imu · 看门狗 500ms','ok');
+addEvent('mid','小脑','bringup 完成：TF 完整 · 地图 arena_v1 已载入 · AMCL 已收敛','ok');
+drawMap(); drawCam();
+</script>
+</body>
+</html>
