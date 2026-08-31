@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小车远程控制 (ROS2版本)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .panel {
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        }
+        
+        h2 {
+            margin-bottom: 15px;
+            color: #fdbb2d;
+            border-bottom: 2px solid #fdbb2d;
+            padding-bottom: 5px;
+        }
+        
+        .connection-info {
+            grid-column: 1 / -1;
+            text-align: center;
+        }
+        
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .control-btn {
+            width: 100px;
+            height: 100px;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 50%;
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        .control-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-btn.forward {
+            grid-column: 2;
+            background: #2ecc71;
+        }
+        
+        .control-btn.backward {
+            grid-column: 2;
+            background: #e74c3c;
+        }
+        
+        .control-btn.left {
+            grid-column: 1;
+            grid-row: 2;
+            background: #f39c12;
+        }
+        
+        .control-btn.right {
+            grid-column: 3;
+            grid-row: 2;
+            background: #f39c12;
+        }
+        
+        .control-btn.stop {
+            grid-column: 2;
+            grid-row: 2;
+            background: #e74c3c;
+        }
+        
+        .speed-control {
+            width: 100%;
+            margin: 15px 0;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        
+        .slider-container label {
+            width: 100px;
+        }
+        
+        input[type="range"] {
+            flex: 1;
+            height: 10px;
+            -webkit-appearance: none;
+            background: #34495e;
+            border-radius: 5px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+        }
+        
+        .keyboard-control {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .keyboard-keys {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .key {
+            padding: 15px;
+            background: #2c3e50;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.1s;
+        }
+        
+        .key.active {
+            background: #3498db;
+            transform: scale(0.95);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .key.w {
+            grid-column: 2;
+        }
+        
+        .key.a {
+            grid-column: 1;
+            grid-row: 2;
+        }
+        
+        .key.s {
+            grid-column: 2;
+            grid-row: 2;
+        }
+        
+        .key.d {
+            grid-column: 3;
+            grid-row: 2;
+        }
+        
+        .key.space {
+            grid-column: 1 / -1;
+            grid-row: 3;
+        }
+        
+        .status-panel {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .status-item {
+            background: rgba(52, 73, 94, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .status-label {
+            font-size: 0.9rem;
+            color: #bdc3c7;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fdbb2d;
+        }
+        
+        .wheel-status {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        
+        .wheel-item {
+            background: rgba(52, 73, 94, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .control-state {
+            grid-column: 1 / -1;
+            background: rgba(41, 128, 185, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .btn.success {
+            background: #2ecc71;
+        }
+        
+        .btn.success:hover {
+            background: #27ae60;
+        }
+        
+        .btn.warning {
+            background: #e74c3c;
+        }
+        
+        .btn.warning:hover {
+            background: #c0392b;
+        }
+        
+        .warning {
+            color: #e74c3c;
+        }
+        
+        .success {
+            color: #2ecc71;
+        }
+        
+        .key-hint {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #bdc3c7;
+            text-align: center;
+        }
+    </style>
+    <script src="roslib.js"></script>
+    <!-- src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js" -->
+</head>
+<body>
+    <h1>小车远程控制 (ROS2版本)</h1>
+    
+    <div class="container">
+        <div class="panel connection-info">
+            <h2>ROS2连接配置</h2>
+            <p>ROS Bridge状态: <span id="connectStatus" class="warning">未连接</span></p>
+            <button class="btn success" onclick="connectROS2()">连接ROS2</button>
+            <button class="btn warning" onclick="disconnectROS2()">断开连接</button>
+        </div>
+        
+        <div class="panel control-panel">
+            <h2>手动控制</h2>
+            
+            <div class="button-grid">
+                <button class="control-btn forward" onclick="sendCommand('forward')">前进</button>
+                <button class="control-btn left" onclick="sendCommand('left')">左转</button>
+                <button class="control-btn stop" onclick="sendCommand('stop')">停止</button>
+                <button class="control-btn right" onclick="sendCommand('right')">右转</button>
+                <button class="control-btn backward" onclick="sendCommand('backward')">后退</button>
+            </div>
+            
+            <div class="speed-control">
+                <div class="slider-container">
+                    <label>线速度:</label>
+                    <input type="range" id="linearSpeed" min="0" max="100" value="50">
+                    <span id="linearSpeedValue" style="margin-left: 10px;">0.5</span> m/s
+                </div>
+                
+                <div class="slider-container">
+                    <label>角速度:</label>
+                    <input type="range" id="angularSpeed" min="0" max="400" value="30">
+                    <span id="angularSpeedValue" style="margin-left: 10px;">0.6</span> rad/s
+                </div>
+            </div>
+            
+            <div class="keyboard-control">
+                <h2>键盘控制</h2>
+                <p class="key-hint">使用 W A S D 控制方向，空格键刹车</p>
+                
+                <div class="keyboard-keys">
+                    <div class="key w">W</div>
+                    <div class="key a">A</div>
+                    <div class="key s">S</div>
+                    <div class="key d">D</div>
+                    <div class="key space">空格键</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel status-panel">
+            <h2>小车状态监控</h2>
+            
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-label">电压</div>
+                    <div class="status-value" id="voltage">--</div>
+                    <small>伏特 (V)</small>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-label">加速度 X</div>
+                    <div class="status-value" id="accelX">--</div>
+                    <small>m/s²</small>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-label">加速度 Y</div>
+                    <div class="status-value" id="accelY">--</div>
+                    <small>m/s²</small>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-label">加速度 Z</div>
+                    <div class="status-value" id="accelZ">--</div>
+                    <small>m/s²</small>
+                </div>
+            </div>
+            
+            <div class="wheel-status">
+                <div class="wheel-item">
+                    <div class="status-label">轮子 1</div>
+                    <div class="status-value" id="wheel1">--</div>
+                </div>
+                <div class="wheel-item">
+                    <div class="status-label">轮子 2</div>
+                    <div class="status-value" id="wheel2">--</div>
+                </div>
+                <div class="wheel-item">
+                    <div class="status-label">轮子 3</div>
+                    <div class="status-value" id="wheel3">--</div>
+                </div>
+                <div class="wheel-item">
+                    <div class="status-label">轮子 4</div>
+                    <div class="status-value" id="wheel4">--</div>
+                </div>
+            </div>
+            
+            <div class="control-state">
+                <div class="status-label">当前控制状态</div>
+                <div>线速度: <span class="status-value" id="currentLinear">0.00</span> m/s</div>
+                <div>角速度: <span class="status-value" id="currentAngular">0.00</span> rad/s</div>
+                <div>最后指令: <span class="status-value" id="lastCommand">无</span></div>
+                <div>数据频率: <span class="status-value" id="updateFreq">0</span> Hz</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ros = null;
+        let cmdVelTopic = null;
+        let carStatusTopic = null;
+        let updateCount = 0;
+        let frequencyTimer = null;
+        
+        // 键盘状态跟踪
+        const keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false,
+            space: false
+        };
+        
+        // 连接ROS2
+        function connectROS2() {
+            try {
+                ros = new ROSLIB.Ros({
+                    url: 'ws://localhost:8888'
+                });
+                
+                ros.on('connection', () => {
+                    document.getElementById('connectStatus').textContent = '已连接ROS2';
+                    document.getElementById('connectStatus').className = 'success';
+                    console.log('ROS2连接成功');
+                    
+                    // 创建控制指令topic
+                    cmdVelTopic = new ROSLIB.Topic({
+                        ros: ros,
+                        name: '/cmd_vel',
+                        messageType: 'geometry_msgs/Twist'
+                    });
+                    
+                    // 订阅小车状态
+                    carStatusTopic = new ROSLIB.Topic({
+                        ros: ros,
+                        name: '/car_status',
+                        messageType: 'std_msgs/Float32MultiArray'
+                    });
+                    
+                    carStatusTopic.subscribe((message) => {
+                        updateCarStatus(message);
+                    });
+                    
+                    // 启动频率计算
+                    startFrequencyCalculation();
+                });
+                
+                ros.on('error', (error) => {
+                    document.getElementById('connectStatus').textContent = '连接失败';
+                    document.getElementById('connectStatus').className = 'warning';
+                    console.error('ROS2连接错误：', error);
+                    stopFrequencyCalculation();
+                });
+                
+                ros.on('close', () => {
+                    document.getElementById('connectStatus').textContent = '连接已断开';
+                    document.getElementById('connectStatus').className = 'warning';
+                    stopFrequencyCalculation();
+                });
+            } catch (error) {
+                console.error('初始化错误:', error);
+                alert('初始化失败: ' + error.message);
+            }
+        }
+        
+        // 断开ROS2连接
+        function disconnectROS2() {
+            if (ros) {
+                ros.close();
+            }
+            stopFrequencyCalculation();
+            resetControlState();
+        }
+        
+        // 重置控制状态
+        function resetControlState() {
+            document.getElementById('currentLinear').textContent = '0.00';
+            document.getElementById('currentAngular').textContent = '0.00';
+            document.getElementById('lastCommand').textContent = '无';
+        }
+        
+        // 更新小车状态显示
+        function updateCarStatus(message) {
+            try {
+                const data = message.data;
+                
+                if (data && data.length >= 8) {
+                    // 更新电压
+                    document.getElementById('voltage').textContent = data[0].toFixed(2);
+                    
+                    // 更新轮子速度
+                    document.getElementById('wheel1').textContent = data[1].toFixed(2);
+                    document.getElementById('wheel2').textContent = data[2].toFixed(2);
+                    document.getElementById('wheel3').textContent = data[3].toFixed(2);
+                    document.getElementById('wheel4').textContent = data[4].toFixed(2);
+                    
+                    // 更新加速度
+                    document.getElementById('accelX').textContent = data[5].toFixed(3);
+                    document.getElementById('accelY').textContent = data[6].toFixed(3);
+                    document.getElementById('accelZ').textContent = data[7].toFixed(3);
+                    
+                    // 更新计数用于频率计算
+                    updateCount++;
+                } else {
+                    console.warn('数据格式异常:', data);
+                }
+            } catch (error) {
+                console.error('解析状态数据错误:', error);
+            }
+        }
+        
+        // 启动频率计算
+        function startFrequencyCalculation() {
+            updateCount = 0;
+            frequencyTimer = setInterval(() => {
+                const freq = updateCount;
+                document.getElementById('updateFreq').textContent = freq;
+                updateCount = 0;
+            }, 1000);
+        }
+        
+        // 停止频率计算
+        function stopFrequencyCalculation() {
+            if (frequencyTimer) {
+                clearInterval(frequencyTimer);
+                frequencyTimer = null;
+            }
+        }
+        
+        // 发送控制指令
+        function sendCommand(action) {
+            if (!ros || !cmdVelTopic) {
+                alert('请先连接ROS2！');
+                return;
+            }
+            
+            const linearSpeed = parseFloat(document.getElementById('linearSpeed').value) / 100;
+            const angularSpeed = parseFloat(document.getElementById('angularSpeed').value) / 100;
+            
+            let linearX = 0;
+            let angularZ = 0;
+            
+            switch(action) {
+                case 'forward':
+                    linearX = linearSpeed;
+                    break;
+                case 'backward':
+                    linearX = -linearSpeed;
+                    break;
+                case 'left':
+                    angularZ = angularSpeed;
+                    break;
+                case 'right':
+                    angularZ = -angularSpeed;
+                    break;
+                case 'stop':
+                    linearX = 0;
+                    angularZ = 0;
+                    break;
+            }
+            
+            const twist = new ROSLIB.Message({
+                linear: { x: linearX, y: 0.0, z: 0.0 },
+                angular: { x: 0.0, y: 0.0, z: angularZ }
+            });
+            
+            cmdVelTopic.publish(twist);
+            
+            // 更新控制状态显示
+            document.getElementById('currentLinear').textContent = linearX.toFixed(2);
+            document.getElementById('currentAngular').textContent = angularZ.toFixed(2);
+            document.getElementById('lastCommand').textContent = action;
+            
+            console.log(`发布指令: ${action}, linear.x=${linearX}, angular.z=${angularZ}`);
+        }
+        
+        // 键盘控制功能
+        function handleKeyControl() {
+            if (!ros || !cmdVelTopic) return;
+            
+            const linearSpeed = parseFloat(document.getElementById('linearSpeed').value) / 100;
+            const angularSpeed = parseFloat(document.getElementById('angularSpeed').value) / 100;
+            
+            let linearX = 0;
+            let angularZ = 0;
+            
+            // 处理前进/后退
+            if (keys.w && !keys.s) {
+                linearX = linearSpeed;
+            } else if (keys.s && !keys.w) {
+                linearX = -linearSpeed;
+            }
+            
+            // 处理转向
+            if (keys.a && !keys.d) {
+                angularZ = angularSpeed;
+            } else if (keys.d && !keys.a) {
+                angularZ = -angularSpeed;
+            }
+            
+            // 空格键刹车
+            if (keys.space) {
+                linearX = 0;
+                angularZ = 0;
+            }
+            
+            // 发布控制指令
+            const twist = new ROSLIB.Message({
+                linear: { x: linearX, y: 0.0, z: 0.0 },
+                angular: { x: 0.0, y: 0.0, z: angularZ }
+            });
+            
+            cmdVelTopic.publish(twist);
+            
+            // 更新控制状态显示
+            document.getElementById('currentLinear').textContent = linearX.toFixed(2);
+            document.getElementById('currentAngular').textContent = angularZ.toFixed(2);
+            
+            // 更新最后指令显示
+            let commandText = '';
+            if (linearX > 0) commandText += '前进';
+            else if (linearX < 0) commandText += '后退';
+            
+            if (angularZ > 0) commandText += commandText ? '+左转' : '左转';
+            else if (angularZ < 0) commandText += commandText ? '+右转' : '右转';
+            
+            if (!commandText) commandText = '停止';
+            
+            document.getElementById('lastCommand').textContent = commandText;
+        }
+        
+        // 键盘事件处理
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            
+            if (key === 'w' || key === 'a' || key === 's' || key === 'd' || key === ' ') {
+                e.preventDefault();
+                
+                if (!keys[key] && key !== ' ') {
+                    keys[key] = true;
+                    document.querySelector(`.key.${key}`).classList.add('active');
+                } else if (key === ' ') {
+                    keys.space = true;
+                    document.querySelector('.key.space').classList.add('active');
+                }
+                
+                handleKeyControl();
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            
+            if (key === 'w' || key === 'a' || key === 's' || key === 'd' || key === ' ') {
+                if (key !== ' ') {
+                    keys[key] = false;
+                    document.querySelector(`.key.${key}`).classList.remove('active');
+                } else {
+                    keys.space = false;
+                    document.querySelector('.key.space').classList.remove('active');
+                }
+                
+                handleKeyControl();
+            }
+        });
+        
+        // 实时更新速度显示
+        document.getElementById('linearSpeed').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value) / 100;
+            document.getElementById('linearSpeedValue').textContent = value.toFixed(1);
+        });
+        
+        document.getElementById('angularSpeed').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value) / 100;
+            document.getElementById('angularSpeedValue').textContent = value.toFixed(1);
+        });
+        
+        // 页面加载后自动设置初始值
+        window.onload = function() {
+            document.getElementById('linearSpeed').value = 50;
+            document.getElementById('angularSpeed').value = 30;
+        };
+        
+        // 页面卸载时清理
+        window.addEventListener('beforeunload', () => {
+            stopFrequencyCalculation();
+            if (ros) {
+                ros.close();
+            }
+        });
+    </script>
+</body>
+</html>
